@@ -283,10 +283,10 @@ done
 # Set dynamic width boundaries
 if [ "$COLS" -ge 180 ]; then
   BAR_LEN=20
-  QUOTA_BAR_LEN=15
+  QUOTA_BAR_LEN=6
 else
   BAR_LEN=10
-  QUOTA_BAR_LEN=8
+  QUOTA_BAR_LEN=4
 fi
 
 # Define Theme Colors and Icons
@@ -488,18 +488,6 @@ visible_len() {
   printf '%s' "$(echo -e "$1" | sed 's/\x1b\[[0-9;]*m//g')" | wc -m
 }
 
-# Get Tailscale and Host Info
-HOST_NAME=$(hostname 2>/dev/null || echo "")
-TS_IP=$(ip -4 addr show dev tailscale0 2>/dev/null | grep -o 'inet [0-9.]*' | cut -d' ' -f2 || echo "")
-HOST_INFO=""
-if [ -n "$HOST_NAME" ]; then
-  if [ -n "$TS_IP" ]; then
-    HOST_INFO="${HOST_NAME} (${TS_IP})"
-  else
-    HOST_INFO="${HOST_NAME}"
-  fi
-fi
-
 # ─── Power / Battery Scanner ─────────────────────────────────────────────────
 POWER_FMT=""
 AC_ONLINE_PATH=""
@@ -547,7 +535,12 @@ make_segment() {
   local fg_sep_code=$(echo -n "$current_bg_code" | sed 's/48;/38;/')
   
   if [ -n "$next_bg_code" ]; then
-    echo -n "${current_bg_code}${fg_text} ${text} ${next_bg_code}${fg_sep_code}${R}"
+    if [ "$current_bg_code" = "$next_bg_code" ]; then
+      # Same background: use soft Powerline divider to prevent huge invisible arrow gap
+      echo -n "${current_bg_code}${fg_text} ${text} \033[38;5;242m${R}"
+    else
+      echo -n "${current_bg_code}${fg_text} ${text} ${next_bg_code}${fg_sep_code}${R}"
+    fi
   else
     echo -n "${current_bg_code}${fg_text} ${text} \033[0m${fg_sep_code}${R}"
   fi
@@ -976,7 +969,14 @@ if [ -n "$CWD_SHORT" ]; then
   ACTIVE_FGS+=("$FG_DIR_TEXT")
 fi
 
-# 5. User Plan & Account
+# 5. Conversation (Session ID)
+if [ -n "$CONV_ID" ] && [ "$COLS" -ge 80 ]; then
+  ACTIVE_SEGS+=(" ${ICON_CONV} ${CONV_ID:0:8}")
+  ACTIVE_BGS+=("$BG_META")
+  ACTIVE_FGS+=("$FG_META_TEXT")
+fi
+
+# 6. User Plan & Account
 if [ -n "$PLAN_TIER" ] || [ -n "$USER_EMAIL" ]; then
   u_label="${PLAN_TIER}"
   if [ -n "$USER_EMAIL" ]; then
@@ -997,23 +997,6 @@ if [ -n "$PLAN_TIER" ] || [ -n "$USER_EMAIL" ]; then
   fi
 fi
 
-# 6. Conversation
-if [ -n "$CONV_ID" ] && [ "$COLS" -ge 80 ]; then
-  ACTIVE_SEGS+=("${ICON_CONV} ${CONV_ID:0:8}")
-  ACTIVE_BGS+=("$BG_META")
-  ACTIVE_FGS+=("$FG_META_TEXT")
-fi
-
-# 6. Host IP
-if [ -n "$HOST_INFO" ] && [ "$COLS" -ge 110 ]; then
-  if [ "$USE_CLASSIC_ICONS" = "true" ]; then
-    ACTIVE_SEGS+=("${HOST_INFO}")
-  else
-    ACTIVE_SEGS+=("󰒋 ${HOST_INFO}")
-  fi
-  ACTIVE_BGS+=("$BG_META")
-  ACTIVE_FGS+=("$FG_META_TEXT")
-fi
 
 # 7. Version
 if [ -n "$CLI_VERSION" ] && [ "$COLS" -ge 120 ]; then
